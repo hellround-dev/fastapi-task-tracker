@@ -51,6 +51,16 @@ def get_tasks(db: Session = Depends(get_db)):
     return db.query(models.TaskModel).all()
 
 
+@app.get("/tasks/{task_id}", response_model=TaskResponse)
+def get_one_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача с таким id не найдена")
+
+    return task
+
+
 @app.delete("/tasks/{task_id}")
 def get_one_task(task_id: int, db: Session = Depends(get_db)):
     task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
