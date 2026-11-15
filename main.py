@@ -11,7 +11,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+redis_client = redis.asyncio.Redis(host="localhost", port=6379, decode_responses=True)
 
 def get_db():
     db = SessionLocal()
@@ -39,19 +39,19 @@ class TaskUpdate(BaseModel):
 
 
 @app.post("/tasks", response_model=TaskResponse)
-def create_task(task: TaskCreate, db: Session = Depends(get_db)):
+async def create_task(task: TaskCreate, db: Session = Depends(get_db)):
     db_task = models.TaskModel(title=task.title, is_done=task.is_done)
 
-    db.add(db_task) 
-    db.commit() 
-    db.refresh(db_task)  
+    await db.add(db_task) 
+    await db.commit() 
+    await db.refresh(db_task)  
 
     return db_task
 
 
 @app.get("/tasks", response_model=list[TaskResponse])
-def get_tasks(db: Session = Depends(get_db)):
-    cached_tasks = redis_client.get("all_tasks")
+async def get_tasks(db: Session = Depends(get_db)):
+    cached_tasks = await redis_client.get("all_tasks")
 
     if cached_tasks:
         print("Данные взяты из Redis")
@@ -61,13 +61,13 @@ def get_tasks(db: Session = Depends(get_db)):
 
     tasks = db.query(models.TaskModel).all()
     tasks_jsonable = [TaskResponse.model_validate(task).model_dump() for task in tasks]
-    redis_client.set("all_tasks", json.dumps(tasks_jsonable), ex=60)
+    await redis_client.set("all_tasks", json.dumps(tasks_jsonable), ex=60)
 
     return tasks
 
 
 @app.get("/tasks/{task_id}", response_model=TaskResponse)
-def get_one_task(task_id: int, db: Session = Depends(get_db)):
+async def get_one_task(task_id: int, db: Session = Depends(get_db)):
     task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
 
     if not task:
@@ -77,7 +77,7 @@ def get_one_task(task_id: int, db: Session = Depends(get_db)):
 
 
 @app.delete("/tasks/{task_id}")
-def delete_task(task_id: int, db: Session = Depends(get_db)):
+async def delete_task(task_id: int, db: Session = Depends(get_db)):
     task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
 
     if not task:
@@ -86,14 +86,15 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     db.delete(task)
     db.commit()
 
-    redis_client.delete("all_tasks")
+    await redis_client.delete("all_tasks")
 
     return {"message": "Задача удалена!"}
 
 
 @app.patch("/tasks/{task_id}", response_model=TaskResponse)
-def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get_db)):
+async def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get_db)):
     task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
+    
     if not task:
         raise HTTPException(status_code=404, detail="Задача с таким id не найдена")
 
@@ -105,6 +106,6 @@ def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get
     db.commit()
     db.refresh(task)
 
-    redis_client.delete("all_tasks")
+    await redis_client.delete("all_tasks")
 
     return task
