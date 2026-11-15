@@ -1,3 +1,5 @@
+import json
+import redis
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -9,6 +11,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
 
 def get_db():
     db = SessionLocal()
@@ -48,7 +51,19 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db)):
 
 @app.get("/tasks", response_model=list[TaskResponse])
 def get_tasks(db: Session = Depends(get_db)):
-    return db.query(models.TaskModel).all()
+    cached_tasks = redis_client.get("all_tasks")
+
+    if cached_tasks:
+        print("Данные взяты из Redis")
+        return json.loads(cached_tasks)
+
+    print("Данные взяты из базы данных")
+
+    tasks = db.query(models.TaskModel).all()
+    tasks_jsonable = [TaskResponse.model_validate(task).model_dump() for task in tasks]
+    redis_client.set("all_tasks", json.dumps(tasks_jsonable), ex=60)
+
+    return tasks
 
 
 @app.get("/tasks/{task_id}", response_model=TaskResponse)
@@ -62,7 +77,7 @@ def get_one_task(task_id: int, db: Session = Depends(get_db)):
 
 
 @app.delete("/tasks/{task_id}")
-def get_one_task(task_id: int, db: Session = Depends(get_db)):
+def delete_task(task_id: int, db: Session = Depends(get_db)):
     task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
 
     if not task:
@@ -70,6 +85,9 @@ def get_one_task(task_id: int, db: Session = Depends(get_db)):
 
     db.delete(task)
     db.commit()
+
+    redis_client.delete("all_tasks")
+
     return {"message": "Задача удалена!"}
 
 
@@ -86,4 +104,7 @@ def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get
 
     db.commit()
     db.refresh(task)
+
+    redis_client.delete("all_tasks")
+
     return task

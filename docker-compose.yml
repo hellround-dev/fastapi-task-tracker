@@ -8,3 +8,9 @@ services:
       POSTGRES_DB: task_tracker_db
     ports:
       - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: task_tracker_redis
+    ports:
+      - "6379:6379"
