@@ -1,5 +1,6 @@
 import json
 import redis
+import os
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -11,7 +12,8 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-redis_client = redis.asyncio.Redis(host="localhost", port=6379, decode_responses=True)
+redis_host = os.getenv("REDIS_HOST", "localhost")
+redis_client = redis.asyncio.Redis(host=redis_host, port=6379, decode_responses=True)
 
 def get_db():
     db = SessionLocal()
@@ -42,9 +44,9 @@ class TaskUpdate(BaseModel):
 async def create_task(task: TaskCreate, db: Session = Depends(get_db)):
     db_task = models.TaskModel(title=task.title, is_done=task.is_done)
 
-    await db.add(db_task) 
-    await db.commit() 
-    await db.refresh(db_task)  
+    db.add(db_task) 
+    db.commit() 
+    db.refresh(db_task)  
 
     return db_task
 

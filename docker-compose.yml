@@ -14,3 +14,15 @@ services:
     container_name: task_tracker_redis
     ports:
       - "6379:6379"
+
+  web:
+    build: .
+    container_name: task_tracker_web
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+psycopg://myuser:mypassword@db:5432/task_tracker_db"
+      REDIS_HOST: "redis"
+    depends_on:
+      - db
+      - redis
