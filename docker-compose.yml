@@ -15,6 +15,13 @@ services:
     ports:
       - "6379:6379"
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: task_tracker_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
   web:
     build: .
     container_name: task_tracker_web
@@ -23,6 +30,19 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg://myuser:mypassword@db:5432/task_tracker_db"
       REDIS_HOST: "redis"
+      CELERY_BROKER_URL: "amqp://guest:guest@rabbitmq:5672//"
     depends_on:
       - db
       - redis
+      - rabbitmq
+
+  worker:
+    build: .
+    container_name: task_tracker_worker
+    command: python -m celery -A tasks_worker.celery_app worker --loglevel=info
+    environment:
+      CELERY_BROKER_URL: "amqp://guest:guest@rabbitmq:5672//"
+    depends_on:
+      - rabbitmq
+      - db
+

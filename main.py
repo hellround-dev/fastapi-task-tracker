@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import models
 from database import SessionLocal, engine
+from tasks_worker import send_email_notification
 from typing import Optional
 
 models.Base.metadata.create_all(bind=engine)
@@ -14,6 +15,7 @@ app = FastAPI()
 
 redis_host = os.getenv("REDIS_HOST", "localhost")
 redis_client = redis.asyncio.Redis(host=redis_host, port=6379, decode_responses=True)
+
 
 def get_db():
     db = SessionLocal()
@@ -32,7 +34,7 @@ class TaskResponse(TaskCreate):
     id: int
 
     class Config:
-        from_attributes = True  
+        from_attributes = True
 
 
 class TaskUpdate(BaseModel):
@@ -44,9 +46,13 @@ class TaskUpdate(BaseModel):
 async def create_task(task: TaskCreate, db: Session = Depends(get_db)):
     db_task = models.TaskModel(title=task.title, is_done=task.is_done)
 
-    db.add(db_task) 
-    db.commit() 
-    db.refresh(db_task)  
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+
+    await redis_client.delete("all_tasks")
+
+    send_email_notification.delay(db_task.title)
 
     return db_task
 
@@ -94,9 +100,11 @@ async def delete_task(task_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/tasks/{task_id}", response_model=TaskResponse)
-async def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get_db)):
+async def update_task(
+    task_id: int, task_update: TaskUpdate, db: Session = Depends(get_db)
+):
     task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
-    
+
     if not task:
         raise HTTPException(status_code=404, detail="Задача с таким id не найдена")
 
