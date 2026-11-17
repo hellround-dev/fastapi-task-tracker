@@ -5,7 +5,9 @@ client = TestClient(app)
 
 
 def test_create_task():
-    response = client.post("/tasks", json = {"title": "Clean a house", "is_done": False})
+    response = client.post(
+        "/tasks", json={"title": "Clean a house", "is_done": False}
+    )
 
     assert response.status_code == 200
 
@@ -20,3 +22,4 @@ def test_get_not_exists():
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Задача с таким id не найдена"
+    
