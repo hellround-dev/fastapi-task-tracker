@@ -14,7 +14,9 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 redis_host = os.getenv("REDIS_HOST", "localhost")
-redis_client = redis.asyncio.Redis(host=redis_host, port=6379, decode_responses=True)
+redis_client = redis.asyncio.Redis(
+    host=redis_host, port=6379, decode_responses=True
+)
 
 
 def get_db():
@@ -68,7 +70,9 @@ async def get_tasks(db: Session = Depends(get_db)):
     print("Данные взяты из базы данных")
 
     tasks = db.query(models.TaskModel).all()
-    tasks_jsonable = [TaskResponse.model_validate(task).model_dump() for task in tasks]
+    tasks_jsonable = [
+        TaskResponse.model_validate(task).model_dump() for task in tasks
+    ]
     await redis_client.set("all_tasks", json.dumps(tasks_jsonable), ex=60)
 
     return tasks
@@ -76,20 +80,28 @@ async def get_tasks(db: Session = Depends(get_db)):
 
 @app.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_one_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
+    task = db.query(models.TaskModel).filter(
+        models.TaskModel.id == task_id
+    ).first()
 
     if not task:
-        raise HTTPException(status_code=404, detail="Задача с таким id не найдена")
+        raise HTTPException(
+            status_code=404, detail="Задача с таким id не найдена"
+        )
 
     return task
 
 
 @app.delete("/tasks/{task_id}")
 async def delete_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
+    task = db.query(models.TaskModel).filter(
+        models.TaskModel.id == task_id
+    ).first()
 
     if not task:
-        raise HTTPException(status_code=404, detail="Задача с таким id не найдена")
+        raise HTTPException(
+            status_code=404, detail="Задача с таким id не найдена"
+        )
 
     db.delete(task)
     db.commit()
@@ -103,10 +115,14 @@ async def delete_task(task_id: int, db: Session = Depends(get_db)):
 async def update_task(
     task_id: int, task_update: TaskUpdate, db: Session = Depends(get_db)
 ):
-    task = db.query(models.TaskModel).filter(models.TaskModel.id == task_id).first()
+    task = db.query(models.TaskModel).filter(
+        models.TaskModel.id == task_id
+    ).first()
 
     if not task:
-        raise HTTPException(status_code=404, detail="Задача с таким id не найдена")
+        raise HTTPException(
+            status_code=404, detail="Задача с таким id не найдена"
+        )
 
     update_data = task_update.model_dump(exclude_unset=True)
 
